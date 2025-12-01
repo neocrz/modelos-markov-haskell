@@ -845,13 +845,74 @@
                 </div>
 
                 <div class="card" style="margin-top: 15px; background: #fff3e0; border-color: #ffe0b2;">
-                    <strong>Importante:</strong> Sem <code>hSetEncoding utf8</code>, o Haskell pode falhar ao ler caracteres como "ã" ou "ç" no Windows.
+                    <strong>Relembrando:</strong> Sem <code>hSetEncoding utf8</code>, podemos ter problemas ao ler caracteres como "ã" ou "ç".
                 </div>
             </div>
         </div>
 
-        <!-- SLIDE 26: Conclusão -->
+        <!-- NOVO SLIDE 26: Comandos para Rodar -->
         <div class="slide" id="slide-26">
+            <div class="slide-content">
+                <h2>Como Rodar o Projeto</h2>
+                <p>O código é open source. Siga os passos abaixo no seu terminal para clonar, baixar o dataset e gerar texto.</p>
+
+                <div class="card" style="text-align: left; background: #282c34; color: #abb2bf; padding: 0; overflow: hidden; border: none; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+                    <div style="background: #21252b; padding: 10px 15px; border-bottom: 1px solid #181a1f; display: flex; gap: 8px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #ff5f56;"></div>
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #ffbd2e;"></div>
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #27c93f;"></div>
+                        <span style="margin-left: 10px; font-family: monospace; font-size: 0.8rem; color: #9da5b4;">bash — term</span>
+                    </div>
+                    <div style="padding: 20px; font-family: 'Consolas', 'Monaco', monospace; line-height: 1.8;">
+                        <div>
+                            <span style="color: #c678dd;">git clone</span> <span style="color: #98c379;">https://github.com/neocrz/modelos-markov-haskell</span>
+                        </div>
+                        <div>
+                            <span style="color: #61afef;">cd</span> modelos-markov-haskell
+                        </div>
+                        <div style="color: #5c6370; margin-top: 10px;">
+                            # Configuração de ambiente (Opcional)
+                        </div>
+                        <div>
+                            <span style="color: #61afef;">nix</span> develop .
+                        </div>
+                        <div style="color: #5c6370; margin-top: 10px;">
+                            # Baixar o livro (Brás Cubas)
+                        </div>
+                        <div>
+                            <span style="color: #e5c07b;">wget</span> https://www.gutenberg.org/ebooks/54829.txt.utf-8 -O dataset.txt
+                        </div>
+                        <div style="color: #5c6370; margin-top: 10px;">
+                            # Compilar e Executar (Arquivo | N-Gram | Limite Palavras)
+                        </div>
+                        <div>
+                            <span style="color: #c678dd;">ghc</span> Main.hs -o generator
+                        </div>
+                        <div>
+                            <span style="color: #98c379;">./generator</span> dataset.txt <span style="color: #d19a66;">2</span> <span style="color: #d19a66;">200</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NOVO SLIDE 27: Demonstração Visual -->
+        <div class="slide" id="slide-27">
+            <div class="slide-content" style="padding: 10px;">
+                <h2>Resultado em Tempo Real</h2>
+                <p>Veja abaixo o resultado da execução dos comandos e o texto gerado estocasticamente.</p>
+                
+                <div style="width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; overflow: hidden; border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.2);">
+                    <img 
+                        src="https://raw.githubusercontent.com/neocrz/modelos-markov-haskell/refs/heads/main/assets/image.png" 
+                        alt="Terminal Screenshot" 
+                        style="max-width: 100%; max-height: 75vh; object-fit: contain; border: 1px solid #ddd;"
+                    >
+                </div>
+            </div>
+        </div>
+
+        <div class="slide" id="slide-28">
             <div class="slide-content" style="justify-content: center;">
                 <h1>Conclusão</h1>
                 <p>Cadeias de Markov são ferramentas poderosas para modelar incertezas, e Haskell nos oferece uma estrutura segura e matemática para implementá-las.</p>
@@ -911,7 +972,7 @@
            SISTEMA DE NAVEGAÇÃO
            ========================================= */
         let currentSlide = 1;
-        const totalSlides = 26;
+        const totalSlides = 28;
 
         function changeSlide(dir) {
             // Parar automações
