@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadeias de Markov - Grupo 4</title>
+    
+    <!-- Bibliotecas Externas (Vis.js e Chart.js) -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* --- ESTILOS GERAIS --- */
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --bg: #ecf0f1;
+            --text: #333;
+            --slide-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0; padding: 0;
+            background-color: var(--bg); color: var(--text);
+            height: 100vh;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+
+        #viewport {
+            flex: 1; display: flex; justify-content: center; align-items: center;
+            position: relative; width: 100%; overflow: hidden; padding: 10px; box-sizing: border-box;
+        }
+
+        /* --- CONTROLES DE NAVEGAÇÃO --- */
+        .controls-area {
+            height: 60px; background: white; display: flex; justify-content: center; align-items: center;
+            gap: 20px; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); z-index: 1000; flex-shrink: 0;
+        }
+
+        /* --- SLIDES --- */
+        .slide {
+            display: none; width: 100%; max-width: 1000px; height: 100%; max-height: 95vh;
+            background: var(--slide-bg); border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            padding: 30px; box-sizing: border-box; flex-direction: column; overflow-y: auto; position: relative;
+        }
+
+        .slide.active { display: flex; animation: fadeIn 0.4s ease-out; }
+        
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(10px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+
+        .slide-content { flex: 1; display: flex; flex-direction: column; align-items: center; width: 100%; }
+
+        /* --- TIPOGRAFIA & ELEMENTOS --- */
+        h1 { margin: 10px 0; font-size: 2.2rem; color: var(--primary); text-align: center; }
+        h2 { margin: 5px 0 20px 0; color: var(--primary); text-align: center; font-size: 1.6rem; }
+        h3 { color: var(--accent); margin-bottom: 5px; }
+        p { text-align: center; max-width: 800px; margin-bottom: 15px; line-height: 1.6; font-size: 1.1rem; }
+        li { margin-bottom: 8px; }
+
+        .team-list { margin-top: 20px; text-align: center; font-size: 1.2rem; background: #fafafa; padding: 20px; border-radius: 10px; width: 80%; }
+        
+        .code-box {
+            background: #f4f4f4; border-left: 5px solid var(--accent);
+            padding: 15px; margin: 20px 0; font-family: monospace; font-size: 1.1rem; color: #555;
+        }
+
+        /* Cards */
+        .card {
+            background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px;
+            text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: transform 0.2s;
+        }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+
+        /* --- BOTÕES & INPUTS --- */
+        button {
+            padding: 8px 16px; border: none; border-radius: 5px; background-color: var(--accent);
+            color: white; cursor: pointer; font-size: 0.95rem; font-weight: 600;
+            transition: background 0.2s, transform 0.1s; display: inline-flex; align-items: center; gap: 5px;
+        }
+        button:hover { background-color: #2980b9; }
+        button:active { transform: scale(0.98); }
+        button:disabled { background-color: #bdc3c7; cursor: not-allowed; opacity: 0.7; }
+        button.secondary { background-color: #95a5a6; }
+        button.secondary:hover { background-color: #7f8c8d; }
+        button.danger { background-color: #e74c3c; }
+        button.danger:hover { background-color: #c0392b; }
+
+        input[type="number"] { padding: 5px; border: 1px solid #ccc; border-radius: 4px; width: 60px; text-align: center; }
+
+        /* --- INTERATIVIDADE VISUAL (GRAFOS) --- */
+        .network-wrapper { width: 100%; height: 400px; position: relative; border: 1px solid #ddd; border-radius: 8px; background: #fafafa; }
+        .network-container { width: 100%; height: 100%; }
+        
+        .zoom-controls { position: absolute; bottom: 10px; right: 10px; display: flex; gap: 5px; z-index: 10; }
+        .zoom-controls button { padding: 5px 10px; font-size: 1.2rem; background: rgba(255,255,255,0.9); color: #333; border: 1px solid #ccc; }
+        .zoom-controls button:hover { background: #eee; }
+
+        #cat-sprite {
+            position: absolute; font-size: 2.5rem; pointer-events: none; transition: top 0.3s, left 0.3s;
+            z-index: 999; display: none; transform: translate(-50%, -50%); text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* --- MATRIZES --- */
+        .matrix-ui-container { display: flex; flex-direction: column; gap: 15px; width: 100%; max-width: 900px; background: #fdfdfd; padding: 15px; border-radius: 8px; border: 1px solid #eee; }
+        .math-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 15px; }
+        .matrix-block { display: flex; flex-direction: column; align-items: center; }
+        .matrix-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; padding: 8px; background: #dfe6e9; border-radius: 6px; }
+        .matrix-cell { background: white; width: 50px; height: 35px; display: flex; align-items: center; justify-content: center; font-family: monospace; font-size: 0.9rem; }
+        .pi-input { width: 55px; height: 30px; text-align: center; border: 2px solid #3498db; border-radius: 4px; font-weight: bold; color: #2c3e50; }
+        .chart-wrapper { width: 100%; height: 200px; margin-top: 10px; }
+        .control-panel { background: #f4f4f4; padding: 10px; border-radius: 8px; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 10px; border: 1px solid #ddd; }
+
+        /* --- HASKELL E TABELAS --- */
+        .comparison-table {
+            width: 100%; border-collapse: collapse; margin-top: 20px; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .comparison-table th { background-color: var(--primary); color: white; padding: 15px; font-size: 1.1rem; }
+        .comparison-table td { border: 1px solid #eee; padding: 15px; vertical-align: top; text-align: left; }
+        .comparison-table tr:nth-child(even) { background-color: #f9f9f9; }
+
+        .haskell-block { display: flex; flex-direction: column; gap: 15px; width: 100%; }
+        .feature-item { background: #eafaf1; border-left: 5px solid #2ecc71; padding: 15px; text-align: left; border-radius: 0 5px 5px 0; }
+        .feature-item h3 { margin: 0 0 5px 0; color: #27ae60; text-align: left; }
+
+        .code-snippet {
+            background: #282c34; color: #abb2bf; font-family: 'Consolas', 'Monaco', monospace;
+            padding: 15px; border-radius: 6px; text-align: left; font-size: 0.95rem;
+            border-left: 5px solid #c678dd; width: 100%; box-sizing: border-box;
+        }
+        .keyword { color: #c678dd; } 
+        .func { color: #61afef; } 
+        .type { color: #e5c07b; } 
+/* --- ESTILOS ESPECÍFICOS DO SLIDE 14 (Janela Deslizante) --- */
+.sliding-container {
+    display: flex; flex-direction: column; gap: 20px; width: 100%; align-items: center;
+}
+
+.text-track {
+    font-size: 1.8rem; font-family: monospace; line-height: 2.5rem;
+    padding: 20px; background: white; border-radius: 8px; box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+    display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+}
+
+.word-span {
+    padding: 5px 10px; border-radius: 4px; transition: all 0.3s; position: relative;
+}
+
+/* Estado Atual (Input) */
+.word-span.active-state {
+    background-color: #d6eaf8; /* Azul claro */
+    border: 2px solid #3498db;
+    color: #2c3e50; font-weight: bold;
+}
+.word-span.active-state::after {
+    content: "Estado"; position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%);
+    font-size: 0.7rem; color: #3498db; font-family: sans-serif;
+}
+
+/* Próxima Palavra (Output) */
+.word-span.active-next {
+    background-color: #d5f5e3; /* Verde claro */
+    border: 2px dashed #2ecc71;
+    color: #27ae60; font-weight: bold;
+}
+.word-span.active-next::after {
+    content: "Próximo"; position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+    font-size: 0.7rem; color: #2ecc71; font-family: sans-serif;
+}
+
+.memory-bank {
+    width: 100%; max-width: 800px; background: #2c3e50; color: #ecf0f1;
+    border-radius: 8px; padding: 15px; font-family: 'Consolas', monospace;
+    height: 200px; overflow-y: auto; text-align: left;
+}
+
+.memory-row {
+    padding: 5px; border-bottom: 1px solid #34495e; display: flex; align-items: center; animation: highlightFlash 1s;
+}
+@keyframes highlightFlash {
+    0% { background-color: #f1c40f; color: #333; }
+    100% { background-color: transparent; color: #ecf0f1; }
+}
+    </style>
+</head>
+<body>
+
+    <!-- O Gato (Elemento Global) -->
+    <div id="cat-sprite">🐱</div>
+
+    <div id="viewport">
+        
+        <!-- SLIDE 1: Capa -->
+        <div class="slide active" id="slide-1">
+            <div class="slide-content" style="justify-content: center;">
+                <h1>Modelos de Markov e Probabilidade em Haskell</h1>
+                <h2 style="font-weight: normal; color: #7f8c8d;">ICD011 - Paradigmas e Tecnologias em Ciência de Dados (Grupo 4)</h2>
+                <div style="font-size: 4rem; margin: 30px;">📊🎲</div>
+                <div class="team-list">
+                    <strong>Integrantes:</strong>
+                    <ul style="list-style: none; padding: 0;">
+                        <li>Ryam</li>
+                        <li>Marcelo</li>
+                        <li>Mariana</li>
+                        <li>Helena</li>
+                        <li>Fernando</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: A Intuição -->
+        <div class="slide" id="slide-2">
+            <div class="slide-content">
+                <h2>A Intuição: Como prever o futuro?</h2>
+                <div style="display: flex; gap: 20px; align-items: center; justify-content: center; margin: 30px 0;">
+                    <div style="font-size: 5rem;">📱</div>
+                    <div style="font-size: 5rem;">☁️</div>
+                </div>
+                <ul style="text-align: left; font-size: 1.3rem;">
+                    <li>Como o corretor do seu celular sabe qual a próxima palavra?</li>
+                    <li>Como prever se vai chover amanhã sabendo apenas o tempo de hoje?</li>
+                </ul>
+                <p style="background: #eaf2f8; padding: 20px; border-radius: 8px; margin-top: 20px;">
+                    <strong>Conceito Chave:</strong> Em vez de certeza absoluta, trabalhamos com <strong>probabilidade</strong> baseada no estado atual.
+                </p>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: Histórico e Definição -->
+        <div class="slide" id="slide-3">
+            <div class="slide-content">
+                <h2>Cadeias de Markov</h2>
+                <p style="font-style: italic;">Andrey Markov (Matemático Russo, 1856–1922)</p>
+                
+                <div style="text-align: left; max-width: 800px;">
+                    <h3>A Origem:</h3>
+                    <p>Markov analisou o poema <em>Eugene Onegin</em> (Pushkin) para provar que a probabilidade da próxima letra dependia da anterior (vogais tendiam a seguir consoantes).</p>
+                    
+                    <h3>Definição:</h3>
+                    <p>Um <strong>Processo Estocástico</strong> com a propriedade de "perda de memória".</p>
+                    <div class="code-box">
+                        "O futuro depende apenas do presente, não do passado."
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: O Grafo (Interativo) -->
+        <div class="slide" id="slide-4">
+            <div class="slide-content">
+                <h2>Visualização: O Modelo do Gato</h2>
+                <p>Vamos aplicar os conceitos. O gato transita entre 4 estados (cômodos).</p>
+                <div class="network-wrapper">
+                    <div id="mynetwork" class="network-container"></div>
+                    <div class="zoom-controls">
+                        <button onclick="zoomNet('mynetwork', 0.2)">+</button>
+                        <button onclick="zoomNet('mynetwork', -0.2)">-</button>
+                        <button onclick="fitNet('mynetwork')">⛶</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: Caminhada (Interativo) -->
+        <div class="slide" id="slide-5">
+            <div class="slide-content">
+                <h2>Simulação: Caminhada Aleatória</h2>
+                <p>Onde o gato estará no próximo passo?</p>
+                <div class="control-panel">
+                    <label>Velocidade (ms): <input type="number" id="walk-speed" value="800" min="100"></label>
+                    <button id="btn-walk-play" onclick="toggleWalk()">▶ Play</button>
+                    <button class="secondary" onclick="stepWalkManual()">👣 Passo Manual</button>
+                    <button class="danger" onclick="resetWalk()">⏹ Reset</button>
+                    <span style="margin-left:10px; font-weight:bold; color:#3498db" id="walk-status">Parado</span>
+                </div>
+                <div class="network-wrapper" style="margin-top: 10px;">
+                    <div id="walknetwork" class="network-container"></div>
+                </div>
+                <div style="margin-top: 5px; text-align: center;">
+                    Local Atual: <strong id="current-room-text">-</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: Matrizes (Interativo) -->
+        <div class="slide" id="slide-6">
+            <div class="slide-content">
+                <h2>Matemática: Convergência</h2>
+                <p>Se deixarmos o gato andar infinitamente, qual a probabilidade dele estar na cozinha?</p>
+                <div class="control-panel">
+                    <label>Intervalo (ms): <input type="number" id="matrix-speed" value="500" min="100"></label>
+                    <button id="btn-matrix-play" onclick="toggleMatrixAuto()">▶ Play</button>
+                    <button class="secondary" onclick="calcMatrixStep()">📐 +1 Passo</button>
+                    <button class="danger" onclick="resetMatrix()">⏹ Reset</button>
+                </div>
+                <div class="matrix-ui-container">
+                    <div class="math-row">
+                        <div class="matrix-block">
+                            <strong>π<sub>t</sub></strong>
+                            <div class="matrix-grid" id="pi-container" style="background: #d4e6f1;"></div>
+                        </div>
+                        <div style="font-size: 1.5rem;">×</div>
+                        <div class="matrix-block">
+                            <strong>P</strong>
+                            <div class="matrix-grid" id="p-container"></div>
+                        </div>
+                        <div style="font-size: 1.5rem;">=</div>
+                        <div class="matrix-block">
+                             <strong>π<sub>t+1</sub></strong>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="probChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: Comparativo -->
+        <div class="slide" id="slide-7">
+            <div class="slide-content">
+                <h2>Comparativo: FSM vs. Markov</h2>
+                <p>Qual a diferença entre uma catraca de metrô e a previsão do tempo?</p>
+                
+                <table class="comparison-table">
+                    <thead>
+                        <tr>
+                            <th width="50%">Máquina de Estados Finita (FSM)</th>
+                            <th width="50%">Cadeia de Markov</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Determinística</strong><br>Dada uma entrada, o resultado é 100% previsível.</td>
+                            <td><strong>Probabilística</strong><br>Dada uma entrada (estado atual), temos apenas chances de ir para outros estados.</td>
+                        </tr>
+                        <tr>
+                            <td><em>Exemplo: Catraca</em><br>Se inserir moeda → Desbloqueia.</td>
+                            <td><em>Exemplo: Mercado</em><br>Se ação subiu hoje → 60% chance de subir amanhã.</td>
+                        </tr>
+                        <tr>
+                            <td><span style="font-size:2rem">🔒</span> Rigidez</td>
+                            <td><span style="font-size:2rem">🎲</span> Incerteza</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- SLIDE 8: Por que Haskell? -->
+        <div class="slide" id="slide-8">
+            <div class="slide-content">
+                <h2>O Paradigma Funcional e Haskell</h2>
+                <p>Por que uma linguagem funcional é ideal para modelar probabilidades?</p>
+                
+                <div class="haskell-block">
+                    <div class="feature-item">
+                        <h3>1. Funções Puras</h3>
+                        <p>Matemática pura: <code>Estado Atual -> Próximo Estado</code>. Sem variáveis globais bagunçando o histórico da nossa cadeia.</p>
+                    </div>
+                    
+                    <div class="feature-item" style="border-color: #3498db; background: #ebf5fb;">
+                        <h3 style="color: #2980b9;">2. Imutabilidade</h3>
+                        <p>Ao calcular o próximo passo do gato, não "destruímos" o passo anterior. Isso é crucial para analisar históricos de processos estocásticos.</p>
+                    </div>
+
+                    <div class="feature-item" style="border-color: #f1c40f; background: #fef9e7;">
+                        <h3 style="color: #d35400;">3. Abstração (Recursão)</h3>
+                        <p>Facilidade para processar grandes volumes de dados (ex: textos inteiros para cadeias de Markov de palavras) com poucas linhas de código.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 9: Monads (ATUALIZADO PARA MATCH COM O CÓDIGO) -->
+        <div class="slide" id="slide-9">
+            <div class="slide-content">
+                <h2>O Desafio da Aleatoriedade</h2>
+                <p>Haskell é "puro". Uma função deve sempre retornar o mesmo valor para a mesma entrada.</p>
+                
+                <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin-bottom: 20px; width: 100%;">
+                    <strong>O Problema:</strong> Como gerar um número aleatório (sorteio) se o código não pode mudar de estado?
+                </div>
+
+                <h3>A Solução: Monads (IO / Random)</h3>
+                <p>Usamos Monads para isolar o "mundo impuro" (aleatoriedade) do "mundo puro" (lógica). É exatamente o que usamos na função <code>randomChoice</code>:</p>
+
+                <div class="code-snippet">
+                    <span class="keyword">randomChoice</span> :: [a] -> <span class="type">IO</span> a<br>
+                    <span class="keyword">randomChoice</span> lista = <span class="keyword">do</span><br>
+                    &nbsp;&nbsp;-- Gera um índice aleatório (Impuro)<br>
+                    &nbsp;&nbsp;idx <- <span class="func">randomRIO</span> (0, length lista - 1)<br>
+                    &nbsp;&nbsp;-- Retorna o item da lista<br>
+                    &nbsp;&nbsp;<span class="keyword">return</span> (lista !! idx)
+                </div>
+                <p style="font-size: 0.9rem; color: #7f8c8d; margin-top: 10px;">
+                    O <code>do</code> e o tipo <code>IO</code> avisam ao programador: "Aqui tem efeitos colaterais".
+                </p>
+            </div>
+        </div>
+
+        <!-- NOVO SLIDE 10: TRANSIÇÃO -->
+        <div class="slide" id="slide-10">
+            <div class="slide-content" style="justify-content: center; text-align: center;">
+                <h1>Aplicação Prática</h1>
+                <h2 style="color: #7f8c8d;">Utilizando Haskell e Markov para Geração de Texto</h2>
+                
+                <div style="font-size: 5rem; margin: 30px;">📜✍️</div>
+                
+                <p style="font-size: 1.3rem;">
+                    Agora que entendemos a teoria (Grafos/Matrizes) e a ferramenta (Haskell/Monads), vamos ver como isso processa livros reais.
+                </p>
+            </div>
+        </div>
+
+<!-- SLIDE 11: A Lógica por Trás da Mágica -->
+        <div class="slide" id="slide-11">
+            <div class="slide-content">
+                <h2>A Lógica por Trás da Mágica</h2>
+                <div style="display: flex; gap: 40px; align-items: center; justify-content: center; margin: 30px 0;">
+                    <div style="text-align: center; opacity: 0.4;">
+                        <div style="font-size: 5rem;">🧠</div>
+                        <p>Semântica / Gramática</p>
+                    </div>
+                    <div style="font-size: 3rem; color: var(--accent);">➔</div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 5rem;">📊</div>
+                        <p style="font-weight: bold; color: var(--primary);">Estatística de Adjacência</p>
+                    </div>
+                </div>
+                <p>Para gerar texto, o sistema não "entende" o que está escrevendo.</p>
+                <div class="code-box" style="text-align: center;">
+                    "Ele atua como um copista estatístico, tratando o texto apenas como uma sequência de eventos."
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 12: Conceitos Fundamentais -->
+        <div class="slide" id="slide-12">
+            <div class="slide-content">
+                <h2>Conceitos Fundamentais</h2>
+                <div style="display: flex; flex-direction: column; gap: 20px; width: 100%;">
+                    
+                    <div class="feature-item">
+                        <h3>1. O Estado (State)</h3>
+                        <p>O contexto atual. Não é o texto todo, mas apenas as últimas palavras que lemos.</p>
+                    </div>
+
+                    <div class="feature-item" style="border-color: #3498db; background: #ebf5fb;">
+                        <h3 style="color: #2980b9;">2. A Transição</h3>
+                        <p>A probabilidade de ir do <strong>Estado A</strong> para a <strong>Palavra B</strong>.</p>
+                    </div>
+
+                    <div class="feature-item" style="border-color: #f1c40f; background: #fef9e7;">
+                        <h3 style="color: #d35400;">3. Probabilidade Empírica</h3>
+                        <p>O modelo não inventa regras. Ele apenas conta: <em>"Quantas vezes isso aconteceu no passado?"</em></p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 13: N-Gramas -->
+        <div class="slide" id="slide-13">
+            <div class="slide-content">
+                <h2>O Contexto (N-Gramas)</h2>
+                <p>Quantas palavras precisamos olhar para trás para fazer sentido?</p>
+                
+                <table class="comparison-table" style="font-size: 1rem;">
+                    <thead>
+                        <tr>
+                            <th>Ordem 1 (Unigrama)</th>
+                            <th>Ordem 2 (Bigrama)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Olha 1 palavra anterior.</td>
+                            <td>Olha 2 palavras anteriores.</td>
+                        </tr>
+                        <tr>
+                            <td><span style="color: #e74c3c;">Contexto Fraco</span></td>
+                            <td><span style="color: #27ae60;">Melhor Coesão</span></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <em>Estado:</em> "gato"<br>
+                                <em>Próximo:</em> azul? comeu? ontem?
+                            </td>
+                            <td>
+                                <em>Estado:</em> "o gato"<br>
+                                <em>Próximo:</em> comeu, dormiu (verbos)
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p style="margin-top: 20px; font-size: 0.9rem; color: #7f8c8d;">* Ordem 3 ou superior corre o risco de copiar frases inteiras do original.</p>
+            </div>
+        </div>
+
+        <!-- SLIDE 14: O Treinamento -->
+        <!-- SLIDE 14: O Treinamento (Interativo) -->
+<div class="slide" id="slide-14">
+    <div class="slide-content">
+        <h2>O Treinamento: Janela Deslizante</h2>
+        <p>O algoritmo aprende varrendo o texto. Veja como a "memória" é construída passo a passo.</p>
+        
+        <div class="control-panel" style="margin-bottom: 20px;">
+            <button onclick="stepSlidingWindow()">👣 Ler Próximo</button>
+            <button class="secondary" onclick="autoSlidingWindow()">▶ Auto</button>
+            <button class="danger" onclick="resetSlidingWindow()">⏹ Reiniciar</button>
+        </div>
+
+        <div class="sliding-container">
+            <!-- Texto para ler -->
+            <div id="sliding-text" class="text-track"></div>
+            
+            <div style="font-size: 2rem;">⬇</div>
+            
+            <!-- Memória sendo construída -->
+            <div class="memory-bank" id="memory-display">
+                <div style="color: #7f8c8d; text-align: center; padding-top: 70px;">
+                    (Memória Vazia)<br>Aperte "Ler Próximo"
+                </div>
+            </div>
+        </div>
+        
+        <p style="font-size: 0.9rem; margin-top: 15px;">
+            Note: Quando o estado <strong>("eu", "amo")</strong> se repete, adicionamos a nova opção à lista existente.
+        </p>
+    </div>
+</div>
+
+        <!-- SLIDE 15: Exemplo Prático -->
+        <div class="slide" id="slide-15">
+            <div class="slide-content">
+                <h2>Construindo a Memória</h2>
+                <p>Texto: <em>"Eu gosto de ler. Eu gosto muito de comer."</em></p>
+                
+                <div class="haskell-block" style="font-family: monospace; font-size: 1.1rem;">
+                    <div class="feature-item" style="border-left-color: #9b59b6;">
+                        1. Janela: <strong>(Eu, gosto)</strong> ➔ Próxima: "de"<br>
+                        <span style="color: #7f8c8d; font-size: 0.9rem;">Memória: { ("Eu", "gosto") : ["de"] }</span>
+                    </div>
+                    
+                    <div class="feature-item" style="border-left-color: #9b59b6;">
+                        2. Janela: <strong>(gosto, de)</strong> ➔ Próxima: "ler"<br>
+                        <span style="color: #7f8c8d; font-size: 0.9rem;">Memória: { ("gosto", "de") : ["ler"] }</span>
+                    </div>
+                    
+                    <div style="text-align: center; color: #aaa;">... texto avança ...</div>
+
+                    <div class="feature-item" style="border-left-color: #9b59b6;">
+                        4. Janela: <strong>(Eu, gosto)</strong> [Repetiu!] ➔ Próxima: "muito"<br>
+                        <span style="color: #7f8c8d; font-size: 0.9rem;">Memória Atualizada: { ("Eu", "gosto") : ["de", "muito"] }</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 16: Cálculo de Probabilidade -->
+        <div class="slide" id="slide-16">
+            <div class="slide-content">
+                <h2>Como o computador escolhe?</h2>
+                <p>Temos a lista de possibilidades para <strong>("Eu", "gosto")</strong>: <code>["de", "muito", "pouco", "de"]</code></p>
+
+                <div style="display: flex; gap: 20px; width: 100%; margin-top: 20px;">
+                    <div class="card" style="flex: 1; text-align: left;">
+                        <h3 style="text-align: center;">Método A: Implícito</h3>
+                        <p>Guardamos todas as ocorrências (bag of words).</p>
+                        <div style="background: #eee; padding: 10px; text-align: center; border-radius: 5px;">
+                            ['de', 'muito', 'pouco', 'de']
+                        </div>
+                        <ul style="font-size: 0.9rem; margin-top: 10px;">
+                            <li>Sorteio simples (Random Choice).</li>
+                            <li>"de" sai mais vezes naturalmente (2/4 = 50%).</li>
+                            <li><strong>Mais fácil de programar.</strong></li>
+                        </ul>
+                    </div>
+
+                    <div class="card" style="flex: 1; text-align: left;">
+                        <h3 style="text-align: center;">Método B: Pesos</h3>
+                        <p>Calculamos a porcentagem exata.</p>
+                        <div style="background: #eee; padding: 10px; text-align: center; border-radius: 5px;">
+                            de: 0.5 | muito: 0.25 | pouco: 0.25
+                        </div>
+                        <ul style="font-size: 0.9rem; margin-top: 10px;">
+                            <li>Usa tabela de pesos acumulados.</li>
+                            <li>Matematicamente mais elegante.</li>
+                            <li>Exige mais processamento prévio.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 17: O Algoritmo de Geração -->
+        <div class="slide" id="slide-17">
+            <div class="slide-content">
+                <h2>O Pipeline de Geração</h2>
+                <p>Um loop infinito de leitura e atualização de contexto.</p>
+                
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; width: 80%;">
+                    <div style="background: var(--primary); color: white; padding: 10px 20px; border-radius: 20px; width: 100%; text-align: center;">
+                        1. <strong>Semente (Seed):</strong> Escolhe estado inicial
+                    </div>
+                    <div>⬇</div>
+                    <div style="background: var(--accent); color: white; padding: 10px 20px; border-radius: 20px; width: 100%; text-align: center;">
+                        2. <strong>Lookup:</strong> Consulta mapa ("Quais as opções?")
+                    </div>
+                    <div>⬇</div>
+                    <div style="background: #9b59b6; color: white; padding: 10px 20px; border-radius: 20px; width: 100%; text-align: center;">
+                        3. <strong>Sorteio:</strong> Escolhe próxima palavra
+                    </div>
+                    <div>⬇</div>
+                    <div style="background: #27ae60; color: white; padding: 10px 20px; border-radius: 20px; width: 100%; text-align: center;">
+                        4. <strong>Deslizamento:</strong> Atualiza janela (Sai a 1ª, entra a Nova)
+                    </div>
+                    <div style="font-size: 1.5rem;">↺</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 18: Teoria dos Estados -->
+        <div class="slide" id="slide-18">
+            <div class="slide-content">
+                <h2>Mito: "Existem bilhões de estados?"</h2>
+                <p>Se o dicionário tem 10.000 palavras, os pares possíveis são infinitos?</p>
+                
+                <h3 style="color: #e74c3c;">NÃO.</h3>
+                
+                <div style="width: 100%; background: #ddd; height: 30px; border-radius: 15px; overflow: hidden; margin: 20px 0; position: relative;">
+                    <div style="width: 100%; height: 100%; background: repeating-linear-gradient(45deg, #ddd, #ddd 10px, #eee 10px, #eee 20px); text-align: center; line-height: 30px; color: #777;">
+                        Combinações Matemáticas Teóricas (Bilhões)
+                    </div>
+                    <div style="position: absolute; top: 0; left: 0; height: 100%; width: 15%; background: var(--accent); display: flex; align-items: center; justify-content: center; color: white; font-size: 0.8rem; box-shadow: 2px 0 5px rgba(0,0,0,0.2);">
+                        Modelo (Real)
+                    </div>
+                </div>
+
+                <ul style="text-align: left; max-width: 800px;">
+                    <li><strong>Modelo Copista:</strong> O algoritmo só conhece o que viu no texto.</li>
+                    <li><strong>Limite Físico:</strong> O número de estados nunca supera o número de palavras do texto original.</li>
+                    <li>Isso torna o processamento viável e rápido, mesmo em livros inteiros.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- NOVOS SLIDES INSERIDOS -->
+        <!-- ================================================================= -->
+
+        <!-- SLIDE 19: O Dataset (Visão Geral) -->
+        <div class="slide" id="slide-19">
+            <div class="slide-content">
+                <h2>O Dataset: Memórias Póstumas</h2>
+                <p>Para testar o modelo, não usaremos frases soltas, mas um clássico da literatura brasileira.</p>
+
+                <div style="display: flex; gap: 20px; align-items: flex-start; margin-top: 20px; width: 100%;">
+                    <!-- Capa / Info -->
+                    <div class="card" style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                        <div style="font-size: 4rem;">📖</div>
+                        <h3>Metadados</h3>
+                        <ul style="text-align: left; font-size: 0.95rem; line-height: 1.8;">
+                            <li><strong>Obra:</strong> Memórias Póstumas de Brás Cubas</li>
+                            <li><strong>Autor:</strong> Machado de Assis (1881)</li>
+                            <li><strong>Fonte:</strong> Project Gutenberg (ID #54829)</li>
+                            <li><strong>Tamanho:</strong> ~440 KB (Texto Puro)</li>
+                        </ul>
+                    </div>
+
+                    <!-- Comando de Download -->
+                    <div style="flex: 1.5; display: flex; flex-direction: column;">
+                        <div class="code-box" style="margin-top: 0; background: #2c3e50; color: #ecf0f1; border-left: 5px solid #e74c3c;">
+                            <div style="font-size: 0.8rem; color: #95a5a6; margin-bottom: 5px;"># Download do Dataset (Terminal)</div>
+                            <span style="color: #f1c40f;">wget</span> https://www.gutenberg.org/.../54829.txt.utf-8 <br>
+                            -O dataset.txt
+                        </div>
+                        <div class="feature-item" style="margin-top: 15px;">
+                            <h3>UTF-8</h3>
+                            <p>O Português usa muitos caracteres especiais (ç, ã, é, ó). Um encoding incorreto faria o modelo ler palavras de maneira errônea, podendo quebrar a estatística.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 20: Estrutura do Arquivo -->
+       <!-- SLIDE 20: Estrutura do Arquivo -->
+        <div class="slide" id="slide-20">
+            <div class="slide-content">
+                <h2>Estrutura do Arquivo de Texto</h2>
+                <p>O arquivo bruto contém licenças legais. Precisamos isolar apenas a obra literária.</p>
+
+                <div style="display: flex; flex-direction: column; width: 60%; gap: 5px; margin-top: 20px;">
+                    
+                    <div style="background: #c0392b; color: white; padding: 15px; border-radius: 8px 8px 0 0; opacity: 0.7; position: relative;">
+                        <span style="text-decoration: line-through;"><strong>Header (Cabeçalho)</strong></span><br>
+                        <span style="font-size: 0.8rem;">Project Gutenberg License...</span>
+                        <div style="position: absolute; right: 15px; top: 15px; font-weight: bold;">🗑️ Ignorado</div>
+                    </div>
+
+                    <div style="background: var(--accent); color: white; padding: 30px; border-radius: 4px; border-left: 10px solid #2980b9; position: relative;">
+                        <strong>Corpo do Texto (O Romance)</strong><br>
+                        "Ao verme que primeiro roeu as frias carnes..."<br>
+                        ...<br>
+                        "Não tive filhos, não transmiti a nenhuma criatura o legado da nossa miséria."
+                        
+                        <div style="position: absolute; right: 20px; top: 35%; font-size: 2rem;">✅</div>
+                    </div>
+
+                    <div style="background: #c0392b; color: white; padding: 15px; border-radius: 0 0 8px 8px; opacity: 0.7; position: relative;">
+                         <span style="text-decoration: line-through;"><strong>Footer (Rodapé)</strong></span><br>
+                        <span style="font-size: 0.8rem;">Legal terms, End of Project Gutenberg EBook...</span>
+                         <div style="position: absolute; right: 15px; top: 15px; font-weight: bold;">🗑️ Ignorado</div>
+                    </div>
+
+                </div>
+                <div style="margin-top: 20px; background: #eafaf1; border-left: 5px solid #2ecc71; padding: 15px; text-align: left; border-radius: 5px; color: #27ae60;">
+                    <strong>Solução via Código:</strong> Implementamos a função <code>extractBody</code> que busca os marcadores <em>"START OF THE PROJECT"</em> e <em>"END OF THE PROJECT"</em>, filtrando automaticamente tudo o que não é o romance.
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 21: Subcapa de Implementação -->
+        <div class="slide" id="slide-21">
+            <div class="slide-content" style="justify-content: center; text-align: center;">
+                <div style="font-size: 5rem; margin-bottom: 20px; color: #8e44ad;">λ</div>
+                <h1 style="color: #8e44ad;">Implementação em Haskell</h1>
+                <h2 style="font-weight: normal; color: #7f8c8d;">Do Teórico ao Prático</h2>
+                
+                <p style="font-size: 1.2rem; max-width: 600px; margin-top: 30px;">
+                    Vamos analisar como traduzir os conceitos de <strong>Tokens</strong>, <strong>N-Gramas</strong> e <strong>Janelas Deslizantes</strong> para código funcional puro e monádico.
+                </p>
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- SLIDES SEGUINTES RENUMERADOS (Antigos 19-23 viram 22-26) -->
+        <!-- ================================================================= -->
+
+        <!-- SLIDE 22: Haskell: Tipos e Pré-processamento -->
+        <div class="slide" id="slide-22">
+            <div class="slide-content">
+                <h2>Haskell: Tipos e Pré-processamento</h2>
+                <p>Começamos definindo o que é "Texto" para o computador e limpando a entrada.</p>
+
+                <div class="code-snippet">
+<span class="type">type</span> <span class="type">Token</span> = <span class="type">String</span>       <span style="color: #5c6370;">-- Uma palavra ("casa")</span><br>
+<span class="type">type</span> <span class="type">NGram</span> = [<span class="type">Token</span>]      <span style="color: #5c6370;">-- O Estado: ["eu", "amo"]</span><br>
+<span class="type">type</span> <span class="type">MarkovMap</span> = <span class="type">Map</span> <span class="type">NGram</span> [<span class="type">Token</span>] <span style="color: #5c6370;">-- O Cérebro</span><br><br>
+<span class="func">preprocess</span> :: <span class="type">Char</span> -> <span class="type">String</span><br>
+<span class="func">preprocess</span> c<br>
+&nbsp;&nbsp;| c `elem` "-'_"  = [c]         <span style="color: #5c6370;">-- Mantém "guarda-chuva"</span><br>
+&nbsp;&nbsp;| isPunctuation c = " " ++ [c] ++ " " <span style="color: #5c6370;">-- Isola "." e ","</span><br>
+&nbsp;&nbsp;| otherwise       = [c]
+                </div>
+
+                <div class="feature-item" style="margin-top: 15px;">
+                    <h3>Por que isso é importante?</h3>
+                    <p>Precisamos que <code>"Fim."</code> seja tratado como <code>["Fim", "."]</code>. Se não separarmos a pontuação, o modelo acharia que "Fim." é uma palavra diferente de "Fim".</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 23: Código - Construindo o Modelo -->
+        <div class="slide" id="slide-23">
+            <div class="slide-content">
+                <h2>Haskell: O Núcleo Puro (Build Model)</h2>
+                <p>A função mágica que transforma texto linear em um grafo de probabilidades.</p>
+
+                <div class="code-snippet">
+<span class="func">buildModel</span> :: <span class="type">Int</span> -> [<span class="type">Token</span>] -> <span class="type">MarkovMap</span><br>
+<span class="func">buildModel</span> n tokens = <br>
+&nbsp;&nbsp;<span class="keyword">let</span> <br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #5c6370;">-- Cria janelas: [["eu", "amo", "café"], ["amo", "café", "."]...]</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;windows = map (take (n + 1)) (tails tokens)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #5c6370;">-- Separa Chave (Estado) e Valor (Próxima)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;mkPair w = (init w, [last w])<br>
+&nbsp;&nbsp;<span class="keyword">in</span> <br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #5c6370;">-- Agrupa duplicatas automaticamente</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="func">Map</span>.fromListWith (++) (map mkPair windows)
+                </div>
+
+                <ul style="text-align: left; margin-top: 20px;">
+                    <li><strong><code>tails</code>:</strong> Gera todas as sublistas possíveis (janela deslizante eficiente).</li>
+                    <li><strong><code>fromListWith (++)</code>:</strong> Se a chave já existe, concatena a nova palavra à lista de opções. É aqui que a "memória" é criada.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- SLIDE 24: Código - Geração (IO) -->
+        <div class="slide" id="slide-24">
+            <div class="slide-content">
+                <h2>Haskell: Geração Recursiva</h2>
+                <p>O loop que escreve o texto. Como envolve sorteio aleatório, roda dentro de <code>IO</code>.</p>
+
+                <div class="code-snippet">
+<span class="func">generateText</span> :: <span class="type">MarkovMap</span> -> <span class="type">NGram</span> -> <span class="type">Int</span> -> <span class="type">IO</span> ()<br>
+<span class="func">generateText</span> model currentGram limit = <span class="keyword">do</span><br>
+&nbsp;&nbsp;<span class="keyword">case</span> <span class="func">Map</span>.lookup currentGram model <span class="keyword">of</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="type">Nothing</span> -> return ()  <span style="color: #5c6370;">-- Fim do caminho</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="type">Just</span> possibilities -> <span class="keyword">do</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #5c6370;">-- 1. Sorteia próxima palavra</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;nextWord <- randomChoice possibilities<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;putStr (" " ++ nextWord)<br><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #5c6370;">-- 2. Desliza a janela (Remove 1º, adiciona Novo)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">let</span> newGram = drop 1 currentGram ++ [nextWord]<br><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color: #5c6370;">-- 3. Recursão (Loop)</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="func">generateText</span> model newGram (limit - 1)
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 25: Código - Main e Encoding -->
+        <!-- SLIDE 25: Código - Main e Encoding -->
+        <div class="slide" id="slide-25">
+            <div class="slide-content">
+                <h2>Haskell: O Main (IO)</h2>
+                <p>O ponto de entrada. Aqui aplicamos a limpeza e iniciamos o treino.</p>
+
+                <div class="code-snippet">
+<span class="func">main</span> :: <span class="type">IO</span> ()<br>
+<span class="func">main</span> = <span class="keyword">do</span><br>
+&nbsp;&nbsp;args <- getArgs<br>
+&nbsp;&nbsp;<br>
+&nbsp;&nbsp;<span style="color: #5c6370;">-- CRUCIAL para Português (Acentos)</span><br>
+&nbsp;&nbsp;<span class="func">hSetEncoding</span> stdout utf8<br>
+&nbsp;&nbsp;<span class="func">hSetEncoding</span> stdin utf8<br>
+&nbsp;&nbsp;<br>
+&nbsp;&nbsp;<span style="color: #5c6370;">-- Leitura e Limpeza Automática</span><br>
+&nbsp;&nbsp;content <- readFile (args !! 0)<br>
+&nbsp;&nbsp;<span class="keyword">let</span> cleanContent = <span class="func">extractBody</span> content<br>
+&nbsp;&nbsp;<br>
+&nbsp;&nbsp;<span style="color: #5c6370;">-- Construção do Modelo</span><br>
+&nbsp;&nbsp;<span class="keyword">let</span> model = buildModel (read (args !! 1)) (tokenize cleanContent)<br>
+&nbsp;&nbsp;<br>
+&nbsp;&nbsp;startNode <- randomChoice (<span class="func">Map</span>.keys model)<br>
+&nbsp;&nbsp;<span class="func">generateText</span> model startNode 500
+                </div>
+
+                <div class="card" style="margin-top: 15px; background: #fff3e0; border-color: #ffe0b2;">
+                    <strong>Importante:</strong> Sem <code>hSetEncoding utf8</code>, o Haskell pode falhar ao ler caracteres como "ã" ou "ç" no Windows.
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 26: Conclusão -->
+        <div class="slide" id="slide-26">
+            <div class="slide-content" style="justify-content: center;">
+                <h1>Conclusão</h1>
+                <p>Cadeias de Markov são ferramentas poderosas para modelar incertezas, e Haskell nos oferece uma estrutura segura e matemática para implementá-las.</p>
+                
+                <div style="display: flex; gap: 30px; margin-top: 40px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 3rem;">🐱</div>
+                        <div>Modelo</div>
+                    </div>
+                    <div style="font-size: 3rem;">+</div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 3rem;">λ</div>
+                        <div>Haskell</div>
+                    </div>
+                    <div style="font-size: 3rem;">=</div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 3rem;">🚀</div>
+                        <div>Ciência de Dados</div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top: 50px; color: var(--primary);">Obrigado!</h3>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- NAVEGAÇÃO -->
+    <div class="controls-area">
+        <button id="btn-prev" onclick="changeSlide(-1)" disabled>❮ Anterior</button>
+        <span id="slide-indicator" style="font-weight: bold; color: var(--primary);">1 / 11</span>
+        <button id="btn-next" onclick="changeSlide(1)">Próximo ❯</button>
+    </div>
+
+    <script>
+        /* =========================================
+           CONFIGURAÇÃO & DADOS
+           ========================================= */
+        const labels = ["Quarto", "Sala", "Cozinha", "Banheiro"];
+        const emojis = ["🛏️", "🛋️", "🍳", "🚽"];
+
+        const P = [
+            [0.5,  0.3, 0.2, 0.0],
+            [0.25, 0.4, 0.3, 0.05],
+            [0.1,  0.6, 0.3, 0.0],
+            [0.0,  0.0, 0.7, 0.3]
+        ];
+
+        const nodesData = [
+            {id: 0, label: 'Quarto\n🛏️', color: '#a2d9ce', shape: 'circle'},
+            {id: 1, label: 'Sala\n🛋️', color: '#aed6f1', shape: 'circle'},
+            {id: 2, label: 'Cozinha\n🍳', color: '#f9e79f', shape: 'circle'},
+            {id: 3, label: 'Banheiro\n🚽', color: '#d7bde2', shape: 'circle'}
+        ];
+
+        /* =========================================
+           SISTEMA DE NAVEGAÇÃO
+           ========================================= */
+        let currentSlide = 1;
+        const totalSlides = 26;
+
+        function changeSlide(dir) {
+            // Parar automações
+            stopWalk();
+            stopMatrix();
+            document.getElementById('cat-sprite').style.display = 'none';
+            
+            const slides = document.querySelectorAll('.slide');
+            slides[currentSlide-1].classList.remove('active');
+            
+            currentSlide += dir;
+            slides[currentSlide-1].classList.add('active');
+
+            // Botões
+            document.getElementById('btn-prev').disabled = currentSlide === 1;
+            document.getElementById('btn-next').disabled = currentSlide === totalSlides;
+            document.getElementById('slide-indicator').innerText = `${currentSlide} / ${totalSlides}`;
+
+            // === INICIALIZAÇÃO INTERATIVA ===
+            if(currentSlide === 4) setTimeout(() => initGraph('mynetwork', false), 50);
+            if(currentSlide === 5) setTimeout(() => initGraph('walknetwork', true), 50);
+            if(currentSlide === 6) initMatrixSlide();
+        }
+
+        /* =========================================
+           LÓGICA DOS GRAFOS (Vis.js)
+           ========================================= */
+        let net1 = null; 
+        let net2 = null;
+
+        const edgesData = [];
+        for(let i=0; i<4; i++){
+            for(let j=0; j<4; j++){
+                if(P[i][j] > 0) {
+                    edgesData.push({
+                        from: i, to: j, label: P[i][j].toString(), 
+                        arrows: 'to', color: { color: '#bdc3c7' },
+                        font: { align: 'horizontal', size: 14 }
+                    });
+                }
+            }
+        }
+
+        function initGraph(id, isWalk) {
+            const container = document.getElementById(id);
+            if(isWalk && net2) { net2.destroy(); net2 = null; }
+            
+            const data = { nodes: new vis.DataSet(nodesData), edges: new vis.DataSet(edgesData) };
+            const options = {
+                physics: { enabled: true, stabilization: { iterations: 100 } },
+                layout: { randomSeed: 123 },
+                nodes: { borderWidth: 2, font: { size: 18 } },
+                interaction: { dragNodes: true, zoomView: true, dragView: true }
+            };
+
+            const network = new vis.Network(container, data, options);
+
+            if(isWalk) {
+                net2 = network;
+                net2.on("afterDrawing", (ctx) => {
+                     if(document.getElementById('cat-sprite').style.display === 'block') {
+                         updateCatPositionVisual();
+                     }
+                });
+                net2.once("stabilizationIterationsDone", () => resetWalk());
+            } else {
+                net1 = network;
+            }
+        }
+
+        function zoomNet(id, val) {
+            const net = (id === 'mynetwork') ? net1 : net2;
+            if(net) {
+                const scale = net.getScale() + val;
+                net.moveTo({ scale: scale > 0.1 ? scale : 0.1 });
+            }
+        }
+
+        function fitNet(id) {
+            const net = (id === 'mynetwork') ? net1 : net2;
+            if(net) net.fit({ animation: true });
+        }
+
+        /* =========================================
+           LÓGICA DA CAMINHADA (Gato)
+           ========================================= */
+        let catState = 1;
+        let walkTimer = null;
+        let isWalking = false;
+
+        function updateCatPositionVisual() {
+            if(!net2) return;
+            const cat = document.getElementById('cat-sprite');
+            const pos = net2.getPositions([catState])[catState];
+            const domPos = net2.canvasToDOM(pos);
+            const rect = document.getElementById('walknetwork').getBoundingClientRect();
+            
+            cat.style.left = (rect.left + domPos.x) + 'px';
+            cat.style.top = (rect.top + domPos.y) + 'px';
+        }
+
+        function resetWalk() {
+            stopWalk();
+            catState = 1;
+            document.getElementById('cat-sprite').style.display = 'block';
+            updateCatPositionVisual();
+            document.getElementById('current-room-text').innerText = "Sala 🛋️";
+            document.getElementById('walk-status').innerText = "Parado";
+        }
+
+        function stepWalkManual() {
+            stopWalk();
+            performWalkStep();
+        }
+
+        function toggleWalk() {
+            if(isWalking) {
+                stopWalk();
+            } else {
+                const speed = parseInt(document.getElementById('walk-speed').value) || 800;
+                document.getElementById('btn-walk-play').innerText = "⏸ Pause";
+                document.getElementById('walk-status').innerText = "Andando...";
+                isWalking = true;
+                performWalkStep();
+                walkTimer = setInterval(performWalkStep, speed);
+            }
+        }
+
+        function stopWalk() {
+            clearInterval(walkTimer);
+            isWalking = false;
+            document.getElementById('btn-walk-play').innerText = "▶ Play";
+            document.getElementById('walk-status').innerText = "Pausado";
+        }
+
+        function performWalkStep() {
+            const row = P[catState];
+            const r = Math.random();
+            let sum = 0; let next = -1;
+            for(let i=0; i<4; i++){
+                sum += row[i];
+                if(r <= sum) { next = i; break; }
+            }
+            catState = next;
+            updateCatPositionVisual();
+            document.getElementById('current-room-text').innerText = labels[catState] + " " + emojis[catState];
+        }
+
+        /* =========================================
+           LÓGICA DAS MATRIZES
+           ========================================= */
+        let currentPi = [0, 1, 0, 0];
+        let chartInstance = null;
+        let matrixTimer = null;
+
+        function initMatrixSlide() {
+            const pCont = document.getElementById('p-container');
+            if(pCont.innerHTML === "") {
+                P.forEach(row => {
+                    row.forEach(val => {
+                        const d = document.createElement('div');
+                        d.className = 'matrix-cell';
+                        d.innerText = val;
+                        if(val===0) d.style.color="#ccc";
+                        pCont.appendChild(d);
+                    });
+                });
+            }
+            renderPiInputs();
+            initChart();
+        }
+
+        function renderPiInputs() {
+            const piCont = document.getElementById('pi-container');
+            piCont.innerHTML = "";
+            currentPi.forEach((val, idx) => {
+                const inp = document.createElement('input');
+                inp.type = "number"; inp.step = "0.1"; inp.min = "0"; inp.max = "1";
+                inp.className = "pi-input";
+                inp.value = parseFloat(val).toFixed(3);
+                inp.onchange = (e) => {
+                    currentPi[idx] = parseFloat(e.target.value);
+                    updateChart();
+                };
+                piCont.appendChild(inp);
+            });
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('probChart').getContext('2d');
+            if(chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Probabilidade',
+                        data: currentPi,
+                        backgroundColor: ['#a2d9ce', '#aed6f1', '#f9e79f', '#d7bde2'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, max: 1 } },
+                    animation: { duration: 300 }
+                }
+            });
+        }
+
+        function updateChart() {
+            chartInstance.data.datasets[0].data = currentPi;
+            chartInstance.update();
+        }
+
+        function calcMatrixStep() {
+            let nextPi = [0,0,0,0];
+            for(let j=0; j<4; j++) {
+                let sum = 0;
+                for(let i=0; i<4; i++) { sum += currentPi[i] * P[i][j]; }
+                nextPi[j] = sum;
+            }
+            currentPi = nextPi;
+            renderPiInputs();
+            updateChart();
+        }
+
+        function toggleMatrixAuto() {
+            if(matrixTimer) {
+                stopMatrix();
+            } else {
+                const ms = parseInt(document.getElementById('matrix-speed').value) || 500;
+                document.getElementById('btn-matrix-play').innerText = "⏸ Pause";
+                matrixTimer = setInterval(calcMatrixStep, ms);
+            }
+        }
+
+        function stopMatrix() {
+            clearInterval(matrixTimer);
+            matrixTimer = null;
+            document.getElementById('btn-matrix-play').innerText = "▶ Play";
+        }
+
+        function resetMatrix() {
+            stopMatrix();
+            currentPi = [0, 1, 0, 0];
+            renderPiInputs();
+            updateChart();
+        }
+
+        // Listener Global
+        window.addEventListener('resize', () => {
+            if(currentSlide === 5) updateCatPositionVisual();
+        });
+/* =========================================
+   LÓGICA DO SLIDE 14 (JANELA DESLIZANTE)
+   ========================================= */
+const trainingText = ["eu", "amo", "café", "e", "eu", "amo", "chá", "."];
+let slideIndex = 0;
+let slidingMemory = {};
+let slidingTimer = null;
+
+function initSlidingSlide() {
+    const container = document.getElementById('sliding-text');
+    container.innerHTML = "";
+    
+    // Renderiza as palavras
+    trainingText.forEach((word, idx) => {
+        const span = document.createElement('span');
+        span.innerText = word;
+        span.className = 'word-span';
+        span.id = `word-${idx}`;
+        container.appendChild(span);
+    });
+    
+    // Reseta visual
+    document.getElementById('memory-display').innerHTML = '<div style="color: #95a5a6; text-align: center; margin-top: 70px;">Memória Vazia. Inicie o treino.</div>';
+    slidingMemory = {};
+    slideIndex = 0;
+}
+
+function updateVisuals() {
+    // Limpa classes anteriores
+    document.querySelectorAll('.word-span').forEach(el => {
+        el.classList.remove('active-state', 'active-next');
+    });
+
+    // Se acabou
+    if (slideIndex > trainingText.length - 3) {
+        return; // Fim do texto (precisa de 2 para estado + 1 para next)
+    }
+
+    // Adiciona classes para Estado (índice e índice+1)
+    document.getElementById(`word-${slideIndex}`).classList.add('active-state');
+    document.getElementById(`word-${slideIndex+1}`).classList.add('active-state');
+    
+    // Adiciona classe para Próximo (índice+2)
+    document.getElementById(`word-${slideIndex+2}`).classList.add('active-next');
+}
+
+function stepSlidingWindow() {
+    if (slideIndex > trainingText.length - 3) {
+        clearInterval(slidingTimer);
+        return; 
+    }
+
+    const state = `("${trainingText[slideIndex]}", "${trainingText[slideIndex+1]}")`;
+    const nextVal = trainingText[slideIndex+2];
+
+    // Atualiza lógica da memória
+    if (!slidingMemory[state]) {
+        slidingMemory[state] = [];
+    }
+    slidingMemory[state].push(nextVal);
+
+    // Atualiza Visual do Texto
+    updateVisuals();
+
+    // Atualiza Visual da Memória
+    renderMemory();
+
+    slideIndex++;
+}
+
+function renderMemory() {
+    const memContainer = document.getElementById('memory-display');
+    memContainer.innerHTML = "";
+    
+    // Cria as linhas da memória
+    Object.keys(slidingMemory).forEach(key => {
+        const row = document.createElement('div');
+        row.className = 'memory-row';
+        // Formato Haskell style: ("a","b") -> ["c", "d"]
+        const valString = `[ ${slidingMemory[key].map(v => `"${v}"`).join(', ')} ]`;
+        row.innerHTML = `<span style="color: #e67e22; font-weight:bold; margin-right:10px;">${key}</span> <span style="color:#bdc3c7">➔</span> <span style="color: #2ecc71; margin-left:10px;">${valString}</span>`;
+        memContainer.appendChild(row);
+    });
+
+    // Scroll para baixo
+    memContainer.scrollTop = memContainer.scrollHeight;
+}
+
+function autoSlidingWindow() {
+    if(slidingTimer) clearInterval(slidingTimer);
+    stepSlidingWindow();
+    slidingTimer = setInterval(stepSlidingWindow, 1000);
+}
+
+function resetSlidingWindow() {
+    clearInterval(slidingTimer);
+    initSlidingSlide();
+}
+    </script>
+</body>
+</html>
